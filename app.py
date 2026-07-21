@@ -125,6 +125,17 @@ def ask_llm_to_build(prompt: str) -> dict[str, Any] | None:
             raise ValueError(f"LLM output missing required NLIP field: {key}")
     parsed.pop("sender", None)
     parsed.pop("receiver", None)
+
+    allowed_formats = {"text", "token", "structured", "binary", "location", "generic"}
+    if parsed.get("format") not in allowed_formats:
+        parsed["format"] = "text"
+        parsed["subformat"] = "english"
+        parsed["content"] = prompt.strip()
+
+    structured_subformats = {"json", "uri", "xml", "html"}
+    if parsed.get("format") == "structured" and parsed.get("subformat") not in structured_subformats:
+        parsed["subformat"] = "json"
+
     return parsed
 
 
