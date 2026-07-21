@@ -75,14 +75,24 @@ def ask_llm_to_build(prompt: str) -> dict[str, Any] | None:
         "subformat, content, and optional submessages. Return JSON only.\n\n"
         f"User request: {prompt}"
     )
-    body = {
-        "model": MODEL_NAME,
-        "messages": [
-            {"role": "system", "content": "You generate valid NLIP JSON envelopes."},
-            {"role": "user", "content": instruction},
-        ],
-        "temperature": 0.1,
-    }
+    if "chat/completions" in JETSTREAM_CHAT_URL:
+        body = {
+            "model": MODEL_NAME,
+            "messages": [
+                {"role": "system", "content": "You generate valid NLIP JSON envelopes."},
+                {"role": "user", "content": instruction},
+            ],
+            "temperature": 0.1,
+            "max_tokens": 250,
+        }
+    else:
+        body = {
+            "model": MODEL_NAME,
+            "prompt": instruction,
+            "temperature": 0.1,
+            "max_tokens": 250,
+            "stop": ["\n\n", "```"],
+        }
     headers = {"Content-Type": "application/json"}
     if JETSTREAM_API_KEY:
         headers["Authorization"] = f"Bearer {JETSTREAM_API_KEY}"
@@ -96,7 +106,16 @@ def ask_llm_to_build(prompt: str) -> dict[str, Any] | None:
     with urllib.request.urlopen(req, timeout=60) as response:
         payload = json.loads(response.read().decode("utf-8"))
 
-    text = payload["choices"][0]["message"]["content"].strip()
+    choice = payload["choices"][0]
+    if "message" in choice:
+        text = choice["message"]["content"].strip()
+    else:
+        text = choice.get("text", "").strip()
+
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end != -1:
+        text = text[start : end + 1]
     if text.startswith("```"):
         text = text.strip("`")
         text = text.removeprefix("json").strip()
